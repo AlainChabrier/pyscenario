@@ -1,42 +1,36 @@
-
+from cloudant.client import Cloudant
+from cloudant.document import Document
 import pandas as pd
-import numpy as np
 
 class Scenario:
 
     def __init__(self, name):
         self.name = name
-        self.pds = {}
-        self.fakeInit()
+        self.client = Cloudant("saxo", "saxo-rest", url="https://saxo.cloudant.com", connect=True)
+        #session = client.session()
+        self.db = self.client['scenarios']
 
     def __str__(self):
         return self.name
 
-    def fakeInit(self):
-        gas_names = ["super", "regular", "diesel"]
-        gas_data = np.array([[3000, 70, 10, 1], [2000, 60, 8, 2], [1000, 50, 6, 1]])
-        nb_gas  = len(gas_names)
-        range_gas = range(nb_gas)
-        gaspd = pd.DataFrame([(gas_names[i],int(gas_data[i][0]),int(gas_data[i][1]),int(gas_data[i][2]),int(gas_data[i][3]))
-        for i in range_gas],
-            index =range_gas )
-        gaspd.columns = ['name','demand','price','octane','lead']
-        self.pds["gas"] = gaspd
-        oil_names = ["crude1", "crude2", "crude3"]
-        oil_data = np.array([[5000, 45, 12, 0.5], [5000, 35, 6, 2], [5000, 25, 8, 3]])
-        nb_oils = len(oil_names)
-        range_oil = range(nb_oils)
-        oilpd = pd.DataFrame([(oil_names[i],int(oil_data[i][0]),int(oil_data[i][1]),int(oil_data[i][2]),oil_data[i][3])
-            for i in range_oil], index=range_oil)
-        oilpd.columns= ['name','capacity','price','octane','lead']
-        self.pds["oil"]=oilpd
-
     @staticmethod
     def getInvokingScenario():
-        return Scenario("Current Scenario")
+        return Scenario("Scenario1")
 
     def getAsDataFrame(self, table):
-        return self.pds[table]
+        id = self.name+"_"+table
+        data = self.db[id]
+        return pd.read_json(data['value'])
 
-    def put(self, name, pd):
-        self.pds[name] = pd
+    def put(self, table, pd):
+        id = self.name+"_"+table
+        if (Document(self.db, id).exists()):
+            data = self.db[id]
+            data['value'] = pd.to_json()
+            data.save()
+        else:
+            data = {
+            '_id': id,
+            'value': pd.to_json()
+            }
+            self.db.create_document(data)
